@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { retrieveContext } from "@/lib/rag";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -7,7 +8,11 @@ export async function POST(req: NextRequest) {
   try {
     const { module, format, priority, scenario } = await req.json();
 
-    const prompt = `You are an expert Guidewire QA engineer with deep knowledge of PolicyCenter, ClaimCenter, and BillingCenter.
+    // Pull relevant internal docs for this module/scenario combination
+    const query = [module, scenario, format, "test case guidewire"].filter(Boolean).join(" ");
+    const internalContext = retrieveContext(query);
+
+    const prompt = `${internalContext}You are an expert Guidewire QA engineer with deep knowledge of PolicyCenter, ClaimCenter, and BillingCenter.
 
 Generate comprehensive test cases for: **${module}**
 
@@ -27,6 +32,7 @@ Include:
 4. Guidewire-specific validations (business rules, workflow states, etc.)
 5. Integration points if applicable
 
+Apply the naming conventions, templates, and business rules from the internal documents above where relevant.
 Be specific to Guidewire's UI, workflows, and insurance domain terminology.`;
 
     const message = await client.messages.create({

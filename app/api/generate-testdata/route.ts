@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { retrieveContext } from "@/lib/rag";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -7,7 +8,11 @@ export async function POST(req: NextRequest) {
   try {
     const { center, product, count, format, notes } = await req.json();
 
-    const prompt = `You are an expert Guidewire test data specialist with deep knowledge of insurance data models.
+    // Retrieve internal field definitions, billing plans, coverage rules for this center
+    const query = [center, product, "test data fields required format", notes].filter(Boolean).join(" ");
+    const internalContext = retrieveContext(query);
+
+    const prompt = `${internalContext}You are an expert Guidewire test data specialist with deep knowledge of insurance data models.
 
 Generate ${count} realistic test data record(s) for:
 - Guidewire Center: ${center}
@@ -34,6 +39,7 @@ ${center === "BillingCenter" ? `
 - Payment history, delinquency status if applicable
 ` : ""}
 
+Use field formats, account number patterns, plan codes, and business rules from the internal documents above.
 Make data realistic, varied, and suitable for QA testing. Use realistic US-based insurance data.
 ${format === "JSON" ? "Output as valid, well-formatted JSON array." : ""}
 ${format === "Table" ? "Output as a clean markdown table." : ""}
