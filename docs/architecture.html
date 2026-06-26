@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guidewire AI Testing — Architecture & Production Guide</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3b82f6;
+      --accent2: #8b5cf6;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --teal: #14b8a6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.6;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 3rem 2rem;
+      text-align: center;
+    }
+    .hero h1 { font-size: 2.4rem; font-weight: 700; color: #fff; margin-bottom: .5rem; }
+    .hero p  { color: var(--muted); font-size: 1.1rem; }
+    .badge {
+      display: inline-block;
+      background: rgba(59,130,246,.2);
+      border: 1px solid rgba(59,130,246,.4);
+      color: #93c5fd;
+      border-radius: 9999px;
+      padding: .25rem .75rem;
+      font-size: .75rem;
+      font-weight: 600;
+      margin: .25rem;
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+    h2 { font-size: 1.6rem; font-weight: 700; margin: 2.5rem 0 1rem;
+         color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 .75rem; color: #93c5fd; }
+    p  { color: var(--muted); margin-bottom: 1rem; }
+
+    .diagram-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+    }
+    .diagram-card .label {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .mermaid { text-align: center; }
+
+    /* Agent cards */
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem; margin: 1.5rem 0; }
+    .agent-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .agent-card .icon { font-size: 2rem; margin-bottom: .5rem; }
+    .agent-card h4 { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: .4rem; }
+    .agent-card .route { font-family: monospace; font-size: .8rem; color: var(--teal); margin-bottom: .75rem; }
+    .agent-card ul { list-style: none; }
+    .agent-card ul li { color: var(--muted); font-size: .88rem; padding: .2rem 0; padding-left: 1rem; position: relative; }
+    .agent-card ul li::before { content: "→"; position: absolute; left: 0; color: var(--accent); }
+
+    /* Production steps */
+    .prod-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .prod-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .prod-card .step-num {
+      width: 2rem; height: 2rem;
+      border-radius: 50%;
+      background: rgba(59,130,246,.2);
+      border: 1px solid rgba(59,130,246,.5);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .85rem; color: #93c5fd;
+      margin-bottom: .75rem;
+    }
+    .prod-card h4 { font-size: .95rem; font-weight: 700; color: var(--text); margin-bottom: .5rem; }
+    .prod-card p  { font-size: .85rem; color: var(--muted); margin: 0; }
+
+    .pill {
+      display: inline-block;
+      border-radius: 9999px;
+      padding: .2rem .6rem;
+      font-size: .72rem;
+      font-weight: 600;
+      margin: .15rem;
+    }
+    .pill-green  { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.3); }
+    .pill-yellow { background: rgba(245,158,11,.15); color: #fde68a; border: 1px solid rgba(245,158,11,.3); }
+    .pill-red    { background: rgba(239,68,68,.15);  color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+
+    .stack-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .stack-table th { text-align: left; padding: .6rem 1rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: 1px solid var(--border); }
+    .stack-table td { padding: .65rem 1rem; font-size: .88rem; border-bottom: 1px solid rgba(48,54,61,.6); color: var(--text); }
+    .stack-table td:first-child { color: var(--muted); }
+    .stack-table code { background: rgba(110,118,129,.1); border-radius: 4px; padding: .1rem .3rem; font-family: monospace; font-size: .82rem; }
+
+    footer { text-align: center; padding: 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; margin-top: 3rem; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Guidewire AI Testing Suite</h1>
+  <p>Architecture, Accelerators &amp; Production Deployment Guide</p>
+  <div style="margin-top:1rem">
+    <span class="badge">Next.js 15</span>
+    <span class="badge">Claude Opus 4.5</span>
+    <span class="badge">3 AI Agents</span>
+    <span class="badge">Guidewire QA</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>1. High-Level System Architecture</h2>
+  <p>
+    The platform is a Next.js full-stack application where each API route acts as an
+    <strong>independent AI agent</strong>—receiving structured inputs, constructing domain-specific
+    prompts, calling Claude, and returning structured outputs.
+  </p>
+
+  <div class="diagram-card">
+    <div class="label">System Context Diagram</div>
+    <div class="mermaid">
+graph TB
+    subgraph Browser["🌐 Browser  (React 19)"]
+        direction TB
+        UI["Tabbed UI<br/>(page.tsx)"]
+        TC["🧪 TestCaseGenerator<br/>component"]
+        TD["🗄️ TestDataGenerator<br/>component"]
+        DA["🐛 DefectAnalyzer<br/>component"]
+        UI --> TC & TD & DA
+    end
+
+    subgraph Server["⚙️ Next.js 15 Server  (Node.js)"]
+        direction TB
+        A1["/api/generate-testcases<br/>Agent 1 — Test Case Agent"]
+        A2["/api/generate-testdata<br/>Agent 2 — Data Synthesis Agent"]
+        A3["/api/analyze-defect<br/>Agent 3 — Defect Intelligence Agent"]
+    end
+
+    subgraph Claude["🤖 Anthropic Claude API"]
+        M["claude-opus-4-5<br/>max_tokens: 2048"]
+    end
+
+    subgraph GW["🏢 Guidewire Domain Knowledge"]
+        PC["PolicyCenter"]
+        CC["ClaimCenter"]
+        BC["BillingCenter"]
+        CM["ContactManager"]
+    end
+
+    TC -->|"POST /api/generate-testcases"| A1
+    TD -->|"POST /api/generate-testdata"| A2
+    DA -->|"POST /api/analyze-defect"| A3
+
+    A1 & A2 & A3 -->|"HTTPS + API Key"| M
+    M -.->|"Domain context baked into<br/>system prompts"| GW
+
+    style Browser fill:#1e1b4b,stroke:#6366f1
+    style Server fill:#0f2027,stroke:#14b8a6
+    style Claude fill:#1a0a2e,stroke:#8b5cf6
+    style GW fill:#0f2a1d,stroke:#22c55e
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>2. The Three AI Accelerators (Agents)</h2>
+  <p>
+    Each accelerator is a focused, stateless AI agent with its own domain-tuned prompt,
+    input schema, and output contract.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <div class="icon">🧪</div>
+      <h4>Agent 1 — Test Case Generator</h4>
+      <div class="route">POST /api/generate-testcases</div>
+      <ul>
+        <li>Inputs: module, format, priority, scenario</li>
+        <li>Outputs: BDD / Step-by-Step / Test Matrix</li>
+        <li>Covers: happy path, negative, boundary tests</li>
+        <li>Prompt persona: Expert GW QA Engineer</li>
+        <li>Supports: 15+ Guidewire modules + custom</li>
+      </ul>
+    </div>
+    <div class="agent-card">
+      <div class="icon">🗄️</div>
+      <h4>Agent 2 — Test Data Synthesizer</h4>
+      <div class="route">POST /api/generate-testdata</div>
+      <ul>
+        <li>Inputs: center, product, count, format, notes</li>
+        <li>Outputs: JSON / Markdown Table / CSV</li>
+        <li>Covers: PolicyCenter, ClaimCenter, BillingCenter</li>
+        <li>Prompt persona: GW Test Data Specialist</li>
+        <li>Generates: realistic US insurance test data</li>
+      </ul>
+    </div>
+    <div class="agent-card">
+      <div class="icon">🐛</div>
+      <h4>Agent 3 — Defect Intelligence</h4>
+      <div class="route">POST /api/analyze-defect</div>
+      <ul>
+        <li>Inputs: description, errorLog, severity, gwCenter</li>
+        <li>Outputs: 6-section structured analysis report</li>
+        <li>Covers: root cause, fix approach, regression risk</li>
+        <li>Prompt persona: Senior GW Technical Consultant</li>
+        <li>GW-aware: GOSU rules, PCF screens, workflows</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>3. Agent Request-Response Flow</h2>
+  <p>Each agent follows the same stateless request/response pattern — no session state is persisted between calls.</p>
+
+  <div class="diagram-card">
+    <div class="label">Sequence Diagram — Single Agent Invocation</div>
+    <div class="mermaid">
+sequenceDiagram
+    actor QA as QA Engineer
+    participant UI as React Component
+    participant API as Next.js API Route
+    participant Claude as Claude API
+
+    QA->>UI: Fills form (module/format/etc.)
+    UI->>UI: Sets loading=true
+    UI->>API: POST /api/{agent-endpoint}<br/>{ inputs... }
+
+    activate API
+    API->>API: Validate input fields
+    API->>API: Build domain-specific prompt<br/>(inject Guidewire context)
+    API->>Claude: messages.create({<br/>  model: "claude-opus-4-5",<br/>  max_tokens: 2048,<br/>  messages: [{ role:"user", content: prompt }]<br/>})
+
+    activate Claude
+    Claude-->>API: { content: [{ type:"text", text:"..." }] }
+    deactivate Claude
+
+    API->>API: Extract text from response
+    API-->>UI: { result: "..." }
+    deactivate API
+
+    UI->>UI: Sets loading=false
+    UI->>QA: Renders formatted output<br/>+ Copy-to-clipboard button
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>4. Prompt Engineering Architecture</h2>
+  <p>
+    The intelligence of each agent lives in its prompt. Each prompt encodes the persona,
+    task constraints, Guidewire domain context, and output format.
+  </p>
+
+  <div class="diagram-card">
+    <div class="label">Prompt Construction Pattern</div>
+    <div class="mermaid">
+graph LR
+    subgraph Prompt["Prompt Assembly (per agent)"]
+        P1["Persona<br/><small>Expert GW QA Engineer /<br/>Data Specialist / Consultant</small>"]
+        P2["Task Context<br/><small>Module, Center, Format,<br/>Severity, etc.</small>"]
+        P3["Domain Rules<br/><small>GOSU rules, PCF screens,<br/>Workflow states, Business rules</small>"]
+        P4["Output Contract<br/><small>Gherkin / JSON / CSV /<br/>Markdown / Sections</small>"]
+    end
+
+    P1 --> FP
+    P2 --> FP
+    P3 --> FP
+    P4 --> FP
+
+    FP["Final Prompt<br/>(string interpolation)"] --> Claude["claude-opus-4-5"]
+    Claude --> R["Structured Text Response"]
+
+    style Prompt fill:#1e1b4b,stroke:#6366f1
+    style Claude fill:#1a0a2e,stroke:#8b5cf6
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>5. Current Technology Stack</h2>
+
+  <div class="diagram-card">
+    <table class="stack-table">
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Technology</th>
+          <th>Version</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Frontend</td><td>React</td><td>19.0</td><td>Component-based UI with hooks</td></tr>
+        <tr><td>Framework</td><td>Next.js</td><td>15.0</td><td>App Router, API Routes (server-side)</td></tr>
+        <tr><td>Language</td><td>TypeScript</td><td>5.7</td><td>Strict mode, full type safety</td></tr>
+        <tr><td>Styling</td><td>Tailwind CSS</td><td>3.4</td><td>Utility-first, dark theme, brand palette</td></tr>
+        <tr><td>AI / LLM</td><td>Anthropic Claude</td><td>Opus 4.5</td><td>Core intelligence for all 3 agents</td></tr>
+        <tr><td>SDK</td><td><code>@anthropic-ai/sdk</code></td><td>latest</td><td>Type-safe Claude API client</td></tr>
+        <tr><td>Icons</td><td>Lucide React</td><td>0.468</td><td>SVG icon library</td></tr>
+        <tr><td>Deploy</td><td>Vercel</td><td>—</td><td>Edge network, serverless functions</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>6. How to Productionise It</h2>
+  <p>
+    The current codebase is a solid MVP. Moving to production requires hardening across
+    six pillars: Security, Observability, Scale, Reliability, Cost Control, and Governance.
+  </p>
+
+  <!-- 6.1 Production Architecture Diagram -->
+  <div class="diagram-card">
+    <div class="label">Target Production Architecture</div>
+    <div class="mermaid">
+graph TB
+    subgraph Internet["Internet"]
+        User["👤 QA User"]
+    end
+
+    subgraph Edge["CDN / Edge (Vercel Edge Network)"]
+        CDN["Static Assets<br/>+ Edge Cache"]
+        WAF["WAF / Rate Limiter<br/>(Vercel Firewall Rules)"]
+    end
+
+    subgraph Auth["Identity Layer"]
+        IdP["Identity Provider<br/>Azure AD / Okta / NextAuth.js"]
+        Session["Session Store<br/>(JWT / Redis)"]
+    end
+
+    subgraph App["Next.js Application (Vercel Functions)"]
+        MW["Auth Middleware<br/>(next/middleware)"]
+        subgraph Agents["AI Agent Routes"]
+            A1["Test Case Agent"]
+            A2["Data Synth Agent"]
+            A3["Defect Intel Agent"]
+        end
+        Cache["Response Cache<br/>(Redis / Upstash)"]
+    end
+
+    subgraph AI["AI Layer"]
+        Claude["Anthropic Claude API<br/>claude-opus-4-5 (complex)<br/>claude-haiku-4-5 (fast/cheap)"]
+        FB["Prompt Registry<br/>(versioned templates)"]
+    end
+
+    subgraph Obs["Observability"]
+        Logs["Structured Logs<br/>(Vercel / Datadog)"]
+        Metrics["Metrics & Alerts<br/>(token usage, latency, errors)"]
+        Traces["Distributed Tracing<br/>(OpenTelemetry)"]
+    end
+
+    subgraph Persist["Persistence"]
+        DB["PostgreSQL / Supabase<br/>(audit log, user history)"]
+        Queue["Message Queue<br/>(async heavy tasks)"]
+    end
+
+    User --> WAF --> CDN --> MW
+    MW --> IdP
+    IdP --> Session
+    MW --> Agents
+    Agents --> Cache
+    Cache -->|cache miss| Claude
+    Claude --> FB
+    Agents --> Logs & Metrics & Traces
+    Agents --> DB
+    Agents --> Queue
+
+    style Internet fill:#0d1117,stroke:#30363d
+    style Edge fill:#0f2a1d,stroke:#22c55e
+    style Auth fill:#2a1f0f,stroke:#f59e0b
+    style App fill:#0f2027,stroke:#14b8a6
+    style AI fill:#1a0a2e,stroke:#8b5cf6
+    style Obs fill:#1a1a0a,stroke:#f59e0b
+    style Persist fill:#0f1a2a,stroke:#3b82f6
+    </div>
+  </div>
+
+  <!-- 6.2 Production Steps -->
+  <h3>Step-by-step Productionisation Roadmap</h3>
+
+  <div class="prod-grid">
+    <div class="prod-card">
+      <div class="step-num">1</div>
+      <h4>Authentication &amp; Authorization</h4>
+      <p>Add NextAuth.js with your org's IdP (Azure AD / Okta / Google SSO). Protect all <code>/api/*</code> routes with <code>next/middleware</code>. Role-based access: viewer vs. editor vs. admin.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">2</div>
+      <h4>Rate Limiting &amp; Abuse Prevention</h4>
+      <p>Apply per-user token budgets with Upstash Redis + <code>@upstash/ratelimit</code>. Set Vercel Firewall Rules for IP-level throttling. Add CORS policy to API routes.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">3</div>
+      <h4>Secrets Management</h4>
+      <p>Rotate <code>ANTHROPIC_API_KEY</code> regularly. Use Vercel Environment Variables (encrypted at rest). For enterprise: pull secrets from HashiCorp Vault or AWS Secrets Manager at build time.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">4</div>
+      <h4>Response Caching</h4>
+      <p>Cache identical prompt hashes in Upstash Redis (TTL: 1 hour). Saves ~60–80% API costs for repeated queries. Invalidate on prompt template version bumps.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">5</div>
+      <h4>Model Tiering</h4>
+      <p>Use <code>claude-opus-4-5</code> for defect analysis (high stakes). Use <code>claude-haiku-4-5</code> for bulk test data generation (cost-efficient). Add model selector per agent config.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">6</div>
+      <h4>Structured Logging &amp; Tracing</h4>
+      <p>Emit JSON logs per request: user, agent, prompt hash, tokens in/out, latency, status. Ship to Datadog or Vercel Logs. Add OpenTelemetry traces across the request lifecycle.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">7</div>
+      <h4>Cost Monitoring</h4>
+      <p>Track token usage per user/team in PostgreSQL. Set monthly budgets with Anthropic's Usage API. Alert when 80% of budget consumed. Expose usage dashboard for team leads.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">8</div>
+      <h4>Async Processing</h4>
+      <p>For large test data generation (50+ records), move to async: queue the job, return a job ID immediately, poll or webhook when complete. Use Vercel Queues or BullMQ + Redis.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">9</div>
+      <h4>Prompt Version Control</h4>
+      <p>Store prompt templates in a versioned Prompt Registry (DB or config file). A/B test prompt versions. Roll back on quality regressions. Track which version produced which output.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">10</div>
+      <h4>CI/CD &amp; Testing</h4>
+      <p>GitHub Actions pipeline: lint → type-check → unit tests → snapshot prompt tests → deploy preview → prod promotion. Gate on green CI only. Use Vercel preview deployments per PR.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">11</div>
+      <h4>Output Persistence &amp; Export</h4>
+      <p>Save generated artefacts to PostgreSQL with user/session metadata. Enable export to PDF (jsPDF), Excel (xlsx), or push directly to Jira/Azure DevOps as test cases or defects.</p>
+    </div>
+    <div class="prod-card">
+      <div class="step-num">12</div>
+      <h4>Input Validation &amp; Sanitisation</h4>
+      <p>Validate all request bodies with <code>zod</code> schemas before prompt injection. Sanitise user-supplied text to prevent prompt injection attacks. Set max character limits per field.</p>
+    </div>
+  </div>
+
+  <!-- 6.3 CI/CD pipeline diagram -->
+  <h3>CI/CD Pipeline</h3>
+  <div class="diagram-card">
+    <div class="label">GitHub Actions → Vercel Production Pipeline</div>
+    <div class="mermaid">
+graph LR
+    PR["Pull Request"] --> Lint["ESLint +<br/>TypeScript Check"]
+    Lint --> UT["Unit Tests<br/>(Jest)"]
+    UT --> PT["Prompt Snapshot<br/>Tests"]
+    PT --> Preview["Vercel Preview<br/>Deploy"]
+    Preview --> Review["Manual QA<br/>Review"]
+    Review --> Merge["Merge to main"]
+    Merge --> Prod["Vercel Production<br/>Deploy"]
+    Prod --> Smoke["Smoke Tests<br/>(Playwright)"]
+    Smoke --> Monitor["Continuous<br/>Monitoring"]
+
+    style PR fill:#1e1b4b,stroke:#6366f1
+    style Prod fill:#0f2a1d,stroke:#22c55e
+    style Monitor fill:#1a1a0a,stroke:#f59e0b
+    </div>
+  </div>
+
+  <!-- 6.4 Recommended roadmap phases -->
+  <h3>Recommended Phased Rollout</h3>
+  <div class="diagram-card">
+    <div class="label">Phase Timeline</div>
+    <div class="mermaid">
+gantt
+    title Production Readiness Phases
+    dateFormat  YYYY-MM-DD
+    section Phase 1 — Foundation
+    Authentication (NextAuth)         :p1a, 2026-07-01, 7d
+    Rate Limiting (Upstash)           :p1b, after p1a, 5d
+    Input Validation (Zod)            :p1c, after p1a, 3d
+    CI/CD Pipeline (GitHub Actions)   :p1d, 2026-07-01, 5d
+
+    section Phase 2 — Reliability
+    Structured Logging (Datadog)      :p2a, 2026-07-15, 5d
+    Response Caching (Redis)          :p2b, 2026-07-15, 5d
+    Secrets Management (Vault)        :p2c, after p2a, 3d
+    Cost Monitoring Dashboard         :p2d, after p2b, 5d
+
+    section Phase 3 — Scale
+    Async Queue (BullMQ)              :p3a, 2026-08-01, 7d
+    Model Tiering (Haiku/Opus)        :p3b, 2026-08-01, 3d
+    Prompt Registry (versioned)       :p3c, after p3b, 5d
+    Export (PDF / Excel / Jira)       :p3d, after p3a, 7d
+
+    section Phase 4 — Growth
+    Fine-tuned GW model               :p4a, 2026-09-01, 14d
+    Multi-agent orchestration         :p4b, after p4a, 14d
+    Regression Impact Analyzer        :p4c, after p4b, 10d
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>7. Future Agents (Roadmap)</h2>
+  <p>The current three-agent architecture is designed to be extended with additional specialised agents:</p>
+
+  <div class="diagram-card">
+    <div class="label">Extended Agent Ecosystem</div>
+    <div class="mermaid">
+graph TB
+    subgraph Current["Current Agents (v1)"]
+        A1["🧪 Test Case Generator"]
+        A2["🗄️ Test Data Synthesizer"]
+        A3["🐛 Defect Intelligence"]
+    end
+
+    subgraph Roadmap["Planned Agents (Roadmap)"]
+        B1["🔄 Regression Impact Analyzer<br/><small>Given a code change, predict<br/>which test suites are affected</small>"]
+        B2["📝 Script Converter Agent<br/><small>Convert manual test steps<br/>to Selenium / Playwright scripts</small>"]
+        B3["📊 Coverage Advisor Agent<br/><small>Analyse test suite coverage<br/>gaps against Guidewire modules</small>"]
+        B4["💬 GW QA Chatbot Agent<br/><small>Conversational assistant for<br/>Guidewire best practices</small>"]
+        B5["🔗 Jira Integration Agent<br/><small>Log defects and test cases<br/>directly to Jira projects</small>"]
+    end
+
+    subgraph Orchestrator["Future: Agent Orchestrator"]
+        Orch["Multi-Agent Coordinator<br/>(Claude tool-use / Agents SDK)"]
+    end
+
+    A1 & A2 & A3 --> Orch
+    B1 & B2 & B3 & B4 & B5 --> Orch
+
+    style Current fill:#0f2027,stroke:#14b8a6
+    style Roadmap fill:#1e1b4b,stroke:#6366f1
+    style Orchestrator fill:#1a0a2e,stroke:#8b5cf6
+    </div>
+  </div>
+
+  <!-- Security summary -->
+  <h2>8. Security Checklist</h2>
+  <div class="diagram-card">
+    <table class="stack-table">
+      <thead>
+        <tr><th>Control</th><th>Status (MVP)</th><th>Action for Production</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>API Key Exposure</td>
+          <td><span class="pill pill-green">Secure — server-side only</span></td>
+          <td>Add key rotation policy + Vault integration</td>
+        </tr>
+        <tr>
+          <td>Authentication</td>
+          <td><span class="pill pill-red">Missing</span></td>
+          <td>Add NextAuth.js with org SSO (Azure AD / Okta)</td>
+        </tr>
+        <tr>
+          <td>Input Validation</td>
+          <td><span class="pill pill-yellow">Partial — basic JSON parsing</span></td>
+          <td>Add Zod schemas for all request bodies</td>
+        </tr>
+        <tr>
+          <td>Prompt Injection</td>
+          <td><span class="pill pill-yellow">Partial — server-side interpolation</span></td>
+          <td>Sanitise user input before template injection</td>
+        </tr>
+        <tr>
+          <td>Rate Limiting</td>
+          <td><span class="pill pill-red">Missing</span></td>
+          <td>Add Upstash ratelimit + Vercel Firewall Rules</td>
+        </tr>
+        <tr>
+          <td>CORS Policy</td>
+          <td><span class="pill pill-red">Missing (defaults to same-origin)</span></td>
+          <td>Explicit CORS headers in API routes</td>
+        </tr>
+        <tr>
+          <td>Audit Logging</td>
+          <td><span class="pill pill-red">Missing</span></td>
+          <td>Log all AI invocations with user + timestamp</td>
+        </tr>
+        <tr>
+          <td>Secrets in .gitignore</td>
+          <td><span class="pill pill-green">Secure — .env.local excluded</span></td>
+          <td>Verify in CI with secret scanning</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /container -->
+
+<footer>
+  Guidewire AI Testing Suite — Architecture Guide &nbsp;|&nbsp;
+  Built with Next.js 15 + Anthropic Claude Opus 4.5 &nbsp;|&nbsp;
+  Generated 2026-06-26
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#0d1117',
+      primaryColor: '#1e1b4b',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#6366f1',
+      lineColor: '#8b949e',
+      secondaryColor: '#0f2027',
+      tertiaryColor: '#1a0a2e',
+      edgeLabelBackground: '#161b22',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    },
+    flowchart: { curve: 'basis', htmlLabels: true },
+    sequence: { actorMargin: 50, messageMargin: 30 },
+    gantt: { axisFormat: '%b %d' },
+  });
+</script>
+</body>
+</html>
